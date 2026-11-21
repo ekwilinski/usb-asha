@@ -6,12 +6,20 @@ USB-to-Bluetooth audio adapter firmware for the **Raytac MDBT50Q-CX-40 (nRF52840
 
 ## Choose an edition
 
-| Edition | Quick tap | Five-second hold while powered | Maximum stream level |
+| Edition | Quick tap | Five-second hold | Maximum stream level |
 | --- | --- | --- | --- |
-| [Generic DFU ZIP](https://github.com/ekwilinski/usb-asha/releases/latest/download/usb-asha-cx40.zip) | Open pairing for 60 seconds | Forget saved processors on release | −18 dB ASHA |
-| [SONNET 3 DFU ZIP](https://github.com/ekwilinski/usb-asha/releases/latest/download/usb-asha-sonnet3-cx40.zip) | Toggle the ambient microphones during streaming | Forget saved processors and immediately open pairing for 60 seconds | −12 dB ASHA |
+| [Generic · 263](https://github.com/ekwilinski/usb-asha/releases/latest/download/usb-asha-cx40.zip) | Open pairing | Forget processors on release | −18 dB ASHA |
+| [Generic with adjustable power · 269](https://github.com/ekwilinski/usb-asha/releases/latest/download/usb-asha-power-cx40.zip) | Open pairing | Forget processors | −12 dB ASHA |
+| [SONNET 3 · 267](https://github.com/ekwilinski/usb-asha/releases/latest/download/usb-asha-sonnet3-cx40.zip) | Toggle ambient microphones while streaming | Forget processors and open pairing | −12 dB ASHA |
+| [SONNET 3 with adjustable power · 268](https://github.com/ekwilinski/usb-asha/releases/latest/download/usb-asha-sonnet3-power-cx40.zip) | Toggle ambient microphones while streaming | Forget processors and open pairing | −12 dB ASHA |
 
-Both editions appear as **USB ASHA Audio** on the host.
+All editions appear as **USB ASHA Audio** on the host. Pairing windows last 60 seconds.
+
+### Change transmit power on builds 268 and 269
+
+Both editions start at **+4 dBm every time the dongle powers up**. Hold the button for at least two seconds and release before five. The radio cycles through **+4 → +8 → 0 → +4 dBm**. After release the LED pulses once for 0 dBm, twice for +4 dBm, or three times for +8 dBm. A rapid burst means the controller could not confirm the change. Holding continuously to five seconds triggers the edition’s forget action and skips the power change.
+
+The setting applies to the dongle’s scanner, connected processors and subsequent reconnections. It takes effect during playback. The processors control their own return-link power. On a computer, `python status.py` shows the confirmed selection as `radio_tx_dbm`. Changing radio power has no effect on the USB volume control.
 
 ## Pair and play
 
@@ -34,19 +42,21 @@ If a phone has already connected to the processors, disconnect streaming on the 
 
 The standard CX-40 has one fitted blue LED, D1, wired active-low to P0.06. [Raytac schematic, page 20](https://eleix.com/linux/radios/MDBT50Q-CX-40_spec.pdf#page=20)
 
-## SONNET 3 button and volume
+## SONNET 3 audio and microphone button
 
-The SONNET edition uses a 144-tap 48-to-16 kHz input filter and a four-path G.722 upper-band search over 1 ms of audio. Packets carry 160 audio bytes per ear every 20 ms. Its dongle transmit power is +4 dBm. The processor controls its own transmit power.
+The SONNET edition uses a 144-tap 48-to-16 kHz input filter and a four-path G.722 upper-band search over 1 ms of audio. Packets carry 160 audio bytes per ear every 20 ms. Build 267 uses fixed +4 dBm transmit power.
 
 During playback, tap and release in under three quarters of a second. The dongle reads the current mixing mode of each connected SONNET 3. If all are in **Streaming only**, it switches them to **Streaming + mic**. Otherwise it selects **Streaming only** across the connected processors. The setting applies to all five listening programs. With only one processor ready, the tap affects that processor.
 
 The blue LED gives one pulse for **Streaming only**, two for **Streaming + mic**, or a short burst of fast flashes if the change could not be confirmed. A success signal requires readback from every processor targeted by that tap. If one side disconnects mid-change, the sides can differ. Reconnect both and tap again to bring them to the same mode. On a computer, `python status.py --mic` reports the last result and how many processors confirmed it.
 
+## Volume on builds 267, 268 and 269
+
 Mute and the lower half of the USB control range (−48 through −24 dB) match the generic edition. Above −24 dB the extra stream level increases gradually, reaching +3 dB at −12 dB and +6 dB at maximum with both channels at full volume. The ramp uses the quieter channel if the host also sends separate left and right levels. A host that turns down its audio samples while leaving the USB controls at maximum gets the same +6 dB offset at every nonzero slider setting.
 
 ## Install
 
-Download the ZIP for your edition from the [latest release](https://github.com/ekwilinski/usb-asha/releases/latest). Both editions target the factory **S113 7.2.0** layout, firmware ID **0x0102**, application address **0x1c000**. Each package contains the application only. The factory USB bootloader remains available through the physical button.
+Download the ZIP for your edition from the [latest release](https://github.com/ekwilinski/usb-asha/releases/latest). All editions target the factory **S113 7.2.0** layout, firmware ID **0x0102**, application address **0x1c000**. Each package contains the application only. The factory USB bootloader remains available through the physical button.
 
 1. Install Nordic nRF Util and its nRF5 SDK tools with `nrfutil install nrf5sdk-tools`.
 2. Unplug the dongle. Hold its button while plugging it into the computer and release when its bootloader LED blinks.
@@ -56,11 +66,11 @@ Download the ZIP for your edition from the [latest release](https://github.com/e
 nrfutil nrf5sdk-tools dfu usb-serial -pkg usb-asha-cx40.zip -p PORT
 ```
 
-The release includes SHA256SUMS for verifying downloads and third-party notices for both editions. After the transfer the dongle restarts as **USB ASHA Audio**. [Raytac DFU guide](https://www.raytac.com/news/ins.php?index_id=175)
+The release includes SHA256SUMS for verifying downloads and third-party notices for all editions. After the transfer the dongle restarts as **USB ASHA Audio**. [Raytac DFU guide](https://www.raytac.com/news/ins.php?index_id=175)
 
 ## Build
 
-Each push to `main` runs codec, timing, button and gain checks, builds both CX-40 editions, and verifies both DFU payloads. Both ZIPs are available as artifacts on the [GitHub Actions build](https://github.com/ekwilinski/usb-asha/actions/workflows/firmware.yml).
+Each push to `main` runs codec, timing, button and gain checks, builds all four CX-40 editions, and verifies each DFU payload. The ZIPs are available as artifacts on the [GitHub Actions build](https://github.com/ekwilinski/usb-asha/actions/workflows/firmware.yml).
 
 Install a Zephyr build environment with Python 3.12, west, CMake, Ninja and the ARM toolchain from Zephyr SDK 0.17.4. From an empty workspace directory, with your Zephyr SDK selected, run the following commands.
 
@@ -69,7 +79,7 @@ west init -m https://github.com/ekwilinski/usb-asha.git .
 west update
 python -m pip install -r zephyr/scripts/requirements-base.txt
 (cd zephyr && git apply ../usb-asha/patches/*.patch)
-west build -b raytac_mdbt50q_cx_40_dongle/nrf52840 -d build usb-asha
+west build -b raytac_mdbt50q_cx_40_dongle/nrf52840 -d build usb-asha -- -DBUILD_VERSION=v4.2.2
 nrfutil nrf5sdk-tools pkg generate --hw-version 52 --sd-req 0x0102 \
   --application-version 263 --application build/zephyr/zephyr.hex usb-asha-cx40.zip
 ```
@@ -77,10 +87,19 @@ nrfutil nrf5sdk-tools pkg generate --hw-version 52 --sd-req 0x0102 \
 For the SONNET 3 edition, use its configuration and application version.
 
 ```sh
-west build -b raytac_mdbt50q_cx_40_dongle/nrf52840 -d build-sonnet usb-asha -- -DEXTRA_CONF_FILE=variants/sonnet3.conf -DEXTRA_DTC_OVERLAY_FILE=variants/sonnet3.overlay
+west build -b raytac_mdbt50q_cx_40_dongle/nrf52840 -d build-sonnet usb-asha -- -DBUILD_VERSION=v4.2.2 -DEXTRA_CONF_FILE=variants/sonnet3.conf -DEXTRA_DTC_OVERLAY_FILE=variants/sonnet3.overlay
 nrfutil nrf5sdk-tools pkg generate --hw-version 52 --sd-req 0x0102 \
   --application-version 267 --application build-sonnet/zephyr/zephyr.hex usb-asha-sonnet3-cx40.zip
 ```
+
+Build the adjustable-power editions with the additional power configuration. Package each one with the Nordic command above using the matching build directory, version and output name.
+
+```sh
+west build -b raytac_mdbt50q_cx_40_dongle/nrf52840 -d build-power usb-asha -- -DBUILD_VERSION=v4.2.2 -DEXTRA_CONF_FILE=variants/power.conf
+west build -b raytac_mdbt50q_cx_40_dongle/nrf52840 -d build-sonnet-power usb-asha -- -DBUILD_VERSION=v4.2.2 '-DEXTRA_CONF_FILE=variants/sonnet3.conf;variants/power.conf' -DEXTRA_DTC_OVERLAY_FILE=variants/sonnet3.overlay
+```
+
+Build 269 produces `usb-asha-power-cx40.zip`. Build 268 produces `usb-asha-sonnet3-power-cx40.zip`.
 
 The west manifest pins Zephyr 4.2.2 and its modules. The two patches correct the UAC1 per-channel volume reply length and coalesce pending USB frame notifications in the nRF driver. The firmware config reserves the factory SoftDevice, settings storage and bootloader flash regions.
 

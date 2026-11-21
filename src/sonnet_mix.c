@@ -182,14 +182,14 @@ static void toggle_all(void)
 	}
 	if (!atomic_get(&cancelled)) {
 		publish(all_stream_only ? WITH_MIC : STREAM_ONLY, VERIFY, count, confirmed);
-		indicator_mix(all_stream_only ? 2 : 1);
+		indicator_feedback(all_stream_only ? 2 : 1);
 	}
 	return;
 
 failure:
 	if (!atomic_get(&cancelled)) {
 		publish(UNCONFIRMED, stage, count, confirmed);
-		indicator_mix(0);
+		indicator_feedback(0);
 	}
 }
 
@@ -212,7 +212,7 @@ void sonnet_toggle(struct bt_conn *const connections[SIDES])
 	atomic_clear(&cancelled);
 	if (!connections[0] && !connections[1]) {
 		publish(UNCONFIRMED, NONE, 0, 0);
-		indicator_mix(0);
+		indicator_feedback(0);
 		atomic_clear(&busy);
 		return;
 	}

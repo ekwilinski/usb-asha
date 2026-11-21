@@ -6,22 +6,23 @@
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_NODELABEL(led0_d1), gpios);
 static atomic_t mode, confirmed, confirm_time, lit;
 
-#ifdef CONFIG_USB_ASHA_SONNET3
-static atomic_t mix_signal, mix_time;
-void indicator_mix(unsigned flashes)
+#if defined(CONFIG_USB_ASHA_SONNET3) || defined(CONFIG_USB_ASHA_POWER_BUTTON)
+static atomic_t feedback_signal, feedback_time;
+void indicator_feedback(unsigned flashes)
 {
-	atomic_set(&mix_time, (atomic_val_t)k_uptime_get_32());
-	atomic_set(&mix_signal, flashes + 1);
+	atomic_set(&feedback_time, (atomic_val_t)k_uptime_get_32());
+	atomic_set(&feedback_signal, flashes + 1);
 }
 #endif
 
 static bool pattern(uint32_t now)
 {
 	if (now < 900) { return true; }
-#ifdef CONFIG_USB_ASHA_SONNET3
-	int signal = atomic_get(&mix_signal);
-	uint32_t age = now - (uint32_t)atomic_get(&mix_time);
-	if (signal > 0 && age < 1350) {
+#if defined(CONFIG_USB_ASHA_SONNET3) || defined(CONFIG_USB_ASHA_POWER_BUTTON)
+	int signal = atomic_get(&feedback_signal);
+	uint32_t age = now - (uint32_t)atomic_get(&feedback_time);
+	uint32_t duration = IS_ENABLED(CONFIG_USB_ASHA_POWER_BUTTON) && signal == 4 ? 1800U : 1350U;
+	if (signal > 0 && age < duration) {
 		if (signal == 1) { return age % 180 >= 90; }
 		return age >= 160 && age < 160 + (signal - 1U) * 480 && (age - 160) % 480 < 320;
 	}

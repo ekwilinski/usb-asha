@@ -1,5 +1,11 @@
 #include "asha.h"
 #include "indicator.h"
+#ifdef CONFIG_USB_ASHA_POWER_BUTTON
+#include "dongle_controls.h"
+#include "radio_power.h"
+BUILD_ASSERT(CONFIG_BT_CTLR_TX_PWR_DBM == 4 && IS_ENABLED(CONFIG_BT_CTLR_TX_PWR_DYNAMIC_CONTROL));
+static atomic_t selected_dbm = CONFIG_BT_CTLR_TX_PWR_DBM;
+#endif
 #ifdef CONFIG_USB_ASHA_SONNET3
 #include "sonnet_mix.h"
 #endif
@@ -410,6 +416,9 @@ static void attach(const bt_addr_le_t *addr)
 	p->conn = conn;
 	p->temporary_bond = !known;
 	err = wait_for(p, CONNECTED, 6500);
+#ifdef CONFIG_USB_ASHA_POWER_BUTTON
+	if (!err) { err = radio_set_link_power(conn, atomic_get(&selected_dbm)); }
+#endif
 	if (!err) { err = setup(p); }
 	if (err) { drop(p, err); }
 	else {
@@ -468,6 +477,44 @@ void asha_poll(void)
 	bt_addr_le_t addr;
 	if (k_msgq_get(&candidates, &addr, K_NO_WAIT) == 0) { attach(&addr); }
 }
+
+#ifdef CONFIG_USB_ASHA_POWER_BUTTON
+int asha_power_dbm(void)
+{
+	return atomic_get(&selected_dbm);
+}
+
+/* Peer setup, removal and button presses run on the same application thread. */
+void asha_cycle_power(void)
+{
+	int prior = asha_power_dbm();
+	int next = next_radio_dbm(prior);
+	unsigned touched = 0;
+	int err = 0;
+	for (unsigned i = 0; i < SIDES; ++i) {
+		struct peer *p = &peers[i];
+		if (!p->conn || k_event_test(&p->events, DOWN | FAILED)) { continue; }
+		touched |= BIT(i);
+		err = radio_set_link_power(p->conn, next);
+		if (err) { break; }
+	}
+	if (!err) { err = radio_set_scan_power(next); }
+	if (!err) {
+		atomic_set(&selected_dbm, next);
+		indicator_feedback(1 + next / 4);
+		return;
+	}
+
+	/* Keep both live links on the last confirmed level after a partial write. */
+	for (unsigned i = 0; i < SIDES; ++i) {
+		if ((touched & BIT(i)) && radio_set_link_power(peers[i].conn, prior)) {
+			drop(&peers[i], err);
+		}
+	}
+	atomic_set(&diag_error, err);
+	indicator_feedback(0);
+}
+#endif
 
 void asha_pair(void)
 {

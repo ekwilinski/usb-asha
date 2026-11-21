@@ -2,8 +2,13 @@ mainmenu "USB ASHA Audio"
 config USB_ASHA_SONNET3
 	bool "SONNET 3 microphone button and extended upper volume range"
 
+config USB_ASHA_POWER_BUTTON
+	bool "Button-selectable radio power and extended upper volume range"
+
 config USB_ASHA_BUILD_NUMBER
 	int
+	default 268 if USB_ASHA_SONNET3 && USB_ASHA_POWER_BUTTON
+	default 269 if USB_ASHA_POWER_BUTTON
 	default 267 if USB_ASHA_SONNET3
 	default 263
 

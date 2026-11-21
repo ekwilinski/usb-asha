@@ -1,6 +1,9 @@
 #include "audio.h"
+#include "dongle_controls.h"
+#ifdef CONFIG_USB_ASHA_POWER_BUTTON
+#include "asha.h"
+#endif
 #ifdef CONFIG_USB_ASHA_SONNET3
-#include "sonnet_controls.h"
 #include "sonnet_fir.h"
 #include "sonnet_mix.h"
 #endif
@@ -140,8 +143,8 @@ int8_t audio_volume(void)
 	if (atomic_get(&mute[0])) { return -128; }
 	int master = atomic_get(&db[0]);
 	int steps = (master - 18) * 8 / 3;
-#ifdef CONFIG_USB_ASHA_SONNET3
-	steps += sonnet_boost_steps(master, atomic_get(&db[1]), atomic_get(&db[2]));
+#if defined(CONFIG_USB_ASHA_SONNET3) || defined(CONFIG_USB_ASHA_POWER_BUTTON)
+	steps += stream_boost_steps(master, atomic_get(&db[1]), atomic_get(&db[2]));
 #endif
 	return MAX(-127, steps);
 }
@@ -156,6 +159,15 @@ static int read_status(struct usb_setup_packet *req, int32_t *len, uint8_t **dat
 		mix = sys_cpu_to_le32(sonnet_status());
 		*data = (uint8_t *)&mix;
 		*len = sizeof(mix);
+		return 0;
+	}
+#endif
+#ifdef CONFIG_USB_ASHA_POWER_BUTTON
+	if (req->bRequest == 0x46 && req->wLength == 1) {
+		static uint8_t dbm;
+		dbm = asha_power_dbm();
+		*data = &dbm;
+		*len = sizeof(dbm);
 		return 0;
 	}
 #endif

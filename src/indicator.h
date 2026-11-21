@@ -6,6 +6,6 @@ void indicator_init(void);
 void indicator_set(enum led_state state);
 void indicator_confirm(void);
 bool indicator_on(void);
-#ifdef CONFIG_USB_ASHA_SONNET3
-void indicator_mix(unsigned flashes);
+#if defined(CONFIG_USB_ASHA_SONNET3) || defined(CONFIG_USB_ASHA_POWER_BUTTON)
+void indicator_feedback(unsigned flashes);
 #endif

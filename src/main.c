@@ -1,5 +1,5 @@
 #include "asha.h"
-#include "sonnet_controls.h"
+#include "dongle_controls.h"
 #include "indicator.h"
 #include <zephyr/drivers/gpio.h>
 
@@ -17,21 +17,32 @@ int main(void)
 		return err;
 	}
 	int64_t last_audio = 0;
-#ifdef CONFIG_USB_ASHA_SONNET3
-	struct sonnet_button button_state = {0};
+#if defined(CONFIG_USB_ASHA_SONNET3) || defined(CONFIG_USB_ASHA_POWER_BUTTON)
+	struct button_state button_state = {0};
 #else
 	int64_t pressed = -1;
 #endif
 	for (;;) {
 		int64_t now = k_uptime_get();
 		bool down = gpio_pin_get_dt(&button) > 0;
-#ifdef CONFIG_USB_ASHA_SONNET3
-		enum sonnet_press action = sonnet_press(&button_state, down, now);
+#if defined(CONFIG_USB_ASHA_SONNET3) || defined(CONFIG_USB_ASHA_POWER_BUTTON)
+		enum button_action action = button_update(&button_state, down, now);
+#ifdef CONFIG_USB_ASHA_POWER_BUTTON
+		if (action == BUTTON_POWER) { asha_cycle_power(); }
+#endif
 		if (action == BUTTON_RESET) {
+#ifdef CONFIG_USB_ASHA_SONNET3
 			if (!asha_forget()) { asha_pair(); }
-			else { indicator_mix(0); }
+			else { indicator_feedback(0); }
+#else
+			if (asha_forget()) { indicator_feedback(0); }
+#endif
 		} else if (action == BUTTON_TAP) {
+#ifdef CONFIG_USB_ASHA_SONNET3
 			asha_toggle_mics();
+#else
+			asha_pair();
+#endif
 		}
 #else
 		if (down) {

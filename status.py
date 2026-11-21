@@ -26,9 +26,12 @@ def status(include_mic=False):
                     disconnects=disconnects,
                     led_on=bool(led), uptime_ms=uptime, fault_reason=fault - 1 if fault else None,
                     fault_pc=hex(pc) if fault else None, fault_stage=STAGES[fault_stage] if fault else None)
+        build, *_ = struct.unpack("<5I", device.ctrl_transfer(0xC0, 0x43, 0, 0, 20))
+        report["build"] = build
+        if build in (268, 269):
+            report["radio_tx_dbm"] = device.ctrl_transfer(0xC0, 0x46, 0, 0, 1)[0]
         if include_mic:
-            build, *_ = struct.unpack("<5I", device.ctrl_transfer(0xC0, 0x43, 0, 0, 20))
-            if build != 267:
+            if build not in (267, 268):
                 raise SystemExit(f"Build {build} does not provide SONNET 3 button status")
             result, stage, targets, verified = device.ctrl_transfer(0xC0, 0x45, 0, 0, 4)
             report["last_mic_button"] = dict(
