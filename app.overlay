@@ -1,0 +1,18 @@
+&zephyr_udc0 {
+	headphones {
+		compatible = "usb-audio-hp";
+		channel-l;
+		channel-r;
+		sample-rate-hz = <48000>;
+		resolution = <16>;
+		feature-mute;
+		feature-volume;
+		volume-max = <0>;
+		volume-min = <0xd000>;
+		volume-res = <0x100>;
+	};
+};
+
+&board_cdc_acm_uart {
+	status = "disabled";
+};

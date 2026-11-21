@@ -1,0 +1,13 @@
+diff --git a/subsys/usb/device/class/audio/audio.c b/subsys/usb/device/class/audio/audio.c
+index 5d81f5b8..d945990e 100644
+--- a/subsys/usb/device/class/audio/audio.c
++++ b/subsys/usb/device/class/audio/audio.c
+@@ -595,7 +595,7 @@ static int handle_fu_volume_req(struct usb_audio_dev_data *audio_dev_data,
+ 		}
+ 	} else {
+ 		if (setup->bRequest == USB_AUDIO_GET_CUR) {
+-			*len = LEN(ch_cnt, VOLUME);
++			*len = LEN(1, VOLUME);
+ 			temp_vol = sys_cpu_to_le16(UNALIGNED_GET((int16_t *)control_val));
+ 			memcpy(*data, &temp_vol, *len);
+ 			return 0;

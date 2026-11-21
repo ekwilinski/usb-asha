@@ -1,0 +1,12 @@
+manifest:
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: v4.2.2
+      import:
+        name-allowlist: [cmsis, cmsis_6, cmsis-dsp, hal_nordic, mbedtls, tinycrypt]
+  self:
+    path: usb-asha

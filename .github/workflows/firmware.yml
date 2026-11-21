@@ -1,0 +1,75 @@
+name: Build firmware
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: usb-asha
+          persist-credentials: false
+
+      - name: Check codec, SONNET button and volume
+        working-directory: usb-asha
+        run: |
+          cc -O3 -funroll-loops -Icodec -Icodec/include tests/codec_reference.c codec/g722_encode.c -o "$RUNNER_TEMP/check-codec"
+          "$RUNNER_TEMP/check-codec"
+          cc -std=c11 -Wall -Werror tests/sonnet_controls.c -o "$RUNNER_TEMP/check-sonnet"
+          "$RUNNER_TEMP/check-sonnet"
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Check timing reader
+        working-directory: usb-asha
+        run: python -m unittest discover -s tests -p test_timing_page.py
+
+      - uses: zephyrproject-rtos/action-zephyr-setup@cc223fe61661d8573c1cd3f95f72f90cce729ae9 # v1.0.16
+        with:
+          app-path: usb-asha
+          sdk-version: '0.17.4'
+          toolchains: arm-zephyr-eabi
+          enable-ccache: false
+
+      - name: Build Raytac CX-40 firmware
+        run: |
+          (cd zephyr && git apply ../usb-asha/patches/*.patch)
+          west build -b raytac_mdbt50q_cx_40_dongle/nrf52840 -d build usb-asha
+          west build -b raytac_mdbt50q_cx_40_dongle/nrf52840 -d build-sonnet usb-asha -- -DEXTRA_CONF_FILE=variants/sonnet3.conf
+
+      - name: Package and verify Nordic USB DFU image
+        run: |
+          curl --fail --location --silent --show-error --retry 3 \
+            https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/executables/x86_64-unknown-linux-gnu/nrfutil \
+            --output "$RUNNER_TEMP/nrfutil"
+          chmod +x "$RUNNER_TEMP/nrfutil"
+          "$RUNNER_TEMP/nrfutil" install nrf5sdk-tools=1.1.0
+          "$RUNNER_TEMP/nrfutil" nrf5sdk-tools pkg generate --hw-version 52 --sd-req 0x0102 \
+            --application-version 263 --application build/zephyr/zephyr.hex build/usb-asha-cx40.zip
+          unzip -p build/usb-asha-cx40.zip zephyr.bin | cmp - build/zephyr/zephyr.bin
+          "$RUNNER_TEMP/nrfutil" nrf5sdk-tools pkg generate --hw-version 52 --sd-req 0x0102 \
+            --application-version 264 --application build-sonnet/zephyr/zephyr.hex build-sonnet/usb-asha-sonnet3-cx40.zip
+          unzip -p build-sonnet/usb-asha-sonnet3-cx40.zip zephyr.bin | cmp - build-sonnet/zephyr/zephyr.bin
+
+      - name: Upload flashable DFU ZIP
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: build/usb-asha-cx40.zip
+          if-no-files-found: error
+          archive: false
+
+      - name: Upload SONNET 3 DFU ZIP
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: build-sonnet/usb-asha-sonnet3-cx40.zip
+          if-no-files-found: error
+          archive: false

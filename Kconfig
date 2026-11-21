@@ -1,0 +1,10 @@
+mainmenu "USB ASHA Audio"
+config USB_ASHA_SONNET3
+	bool "SONNET 3 microphone button and extended upper volume range"
+
+config USB_ASHA_BUILD_NUMBER
+	int
+	default 264 if USB_ASHA_SONNET3
+	default 263
+
+source "Kconfig.zephyr"

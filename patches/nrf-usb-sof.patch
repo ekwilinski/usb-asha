@@ -1,0 +1,44 @@
+diff --git a/drivers/usb/device/usb_dc_nrfx.c b/drivers/usb/device/usb_dc_nrfx.c
+index d7e56167..ca3a614a 100644
+--- a/drivers/usb/device/usb_dc_nrfx.c
++++ b/drivers/usb/device/usb_dc_nrfx.c
+@@ -256,6 +256,7 @@ struct nrf_usbd_ctx {
+ 
+ /* FIFO used for queuing up events from ISR. */
+ K_FIFO_DEFINE(usbd_evt_fifo);
++static atomic_t sof_queued;
+ 
+ /* Work queue used for handling the ISR events (i.e. for notifying the USB
+  * device stack, for executing the endpoints callbacks, etc.) out of the ISR
+@@ -407,7 +408,11 @@ static inline void usbd_evt_put(struct usbd_event *ev)
+  */
+ static inline struct usbd_event *usbd_evt_get(void)
+ {
+-	return k_fifo_get(&usbd_evt_fifo, K_NO_WAIT);
++	struct usbd_event *ev = k_fifo_get(&usbd_evt_fifo, K_NO_WAIT);
++	if (ev && ev->evt_type == USBD_EVT_SOF) {
++		atomic_clear(&sof_queued);
++	}
++	return ev;
+ }
+ 
+ /**
+@@ -1076,7 +1081,9 @@ static void usbd_event_handler(nrf_usbd_common_evt_t const *const p_event)
+ 		put_evt = true;
+ 		break;
+ 	case NRF_USBD_COMMON_EVT_SOF:
+-		if (IS_ENABLED(CONFIG_USB_DEVICE_SOF)) {
++		/* A late ISO frame cannot be replayed. Keep one SOF pending so control
++		 * requests keep their queue slots during BLE and flash activity. */
++		if (IS_ENABLED(CONFIG_USB_DEVICE_SOF) && atomic_cas(&sof_queued, 0, 1)) {
+ 			evt.evt_type = USBD_EVT_SOF;
+ 			put_evt = true;
+ 		}
+@@ -1134,6 +1141,7 @@ static void usbd_event_handler(nrf_usbd_common_evt_t const *const p_event)
+ 
+ 		ev = usbd_evt_alloc();
+ 		if (!ev) {
++			if (evt.evt_type == USBD_EVT_SOF) { atomic_clear(&sof_queued); }
+ 			return;
+ 		}
+ 		ev->evt_type = evt.evt_type;
