@@ -5,7 +5,11 @@
 int main(void)
 {
 	FILE *pcm = fopen("tests/fixtures/reference.pcm", "rb");
+#ifdef CONFIG_USB_ASHA_SONNET3
+	FILE *reference = fopen("tests/fixtures/sonnet_quality.g722", "rb");
+#else
 	FILE *reference = fopen("tests/fixtures/reference.g722", "rb");
+#endif
 	G722_ENC_CTX *encoder = g722_encoder_new(64000, G722_DEFAULT);
 	if (!pcm || !reference || !encoder) { return 1; }
 	for (int n = 0; n < 2; ++n) {

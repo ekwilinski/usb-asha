@@ -36,6 +36,8 @@ The standard CX-40 has one fitted blue LED, D1, wired active-low to P0.06. [Rayt
 
 ## SONNET 3 button and volume
 
+The SONNET edition uses a 144-tap 48-to-16 kHz input filter and a four-path G.722 upper-band search over 1 ms of audio. Packets carry 160 audio bytes per ear every 20 ms. Its dongle transmit power is +4 dBm. The processor controls its own transmit power.
+
 During playback, tap and release in under three quarters of a second. The dongle reads the current mixing mode of each connected SONNET 3. If all are in **Streaming only**, it switches them to **Streaming + mic**. Otherwise it selects **Streaming only** across the connected processors. The setting applies to all five listening programs. With only one processor ready, the tap affects that processor.
 
 The blue LED gives one pulse for **Streaming only**, two for **Streaming + mic**, or a short burst of fast flashes if the change could not be confirmed. A success signal requires readback from every processor targeted by that tap. If one side disconnects mid-change, the sides can differ. Reconnect both and tap again to bring them to the same mode. On a computer, `python status.py --mic` reports the last result and how many processors confirmed it.
@@ -75,9 +77,9 @@ nrfutil nrf5sdk-tools pkg generate --hw-version 52 --sd-req 0x0102 \
 For the SONNET 3 edition, use its configuration and application version.
 
 ```sh
-west build -b raytac_mdbt50q_cx_40_dongle/nrf52840 -d build-sonnet usb-asha -- -DEXTRA_CONF_FILE=variants/sonnet3.conf
+west build -b raytac_mdbt50q_cx_40_dongle/nrf52840 -d build-sonnet usb-asha -- -DEXTRA_CONF_FILE=variants/sonnet3.conf -DEXTRA_DTC_OVERLAY_FILE=variants/sonnet3.overlay
 nrfutil nrf5sdk-tools pkg generate --hw-version 52 --sd-req 0x0102 \
-  --application-version 264 --application build-sonnet/zephyr/zephyr.hex usb-asha-sonnet3-cx40.zip
+  --application-version 267 --application build-sonnet/zephyr/zephyr.hex usb-asha-sonnet3-cx40.zip
 ```
 
 The west manifest pins Zephyr 4.2.2 and its modules. The two patches correct the UAC1 per-channel volume reply length and coalesce pending USB frame notifications in the nRF driver. The firmware config reserves the factory SoftDevice, settings storage and bootloader flash regions.

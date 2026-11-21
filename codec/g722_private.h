@@ -57,8 +57,21 @@ struct g722_band
     int det;
 };
 
+#ifdef CONFIG_USB_ASHA_SONNET3
+/* Persistent upper-band variables at a codeword boundary. */
+struct g722_high_state {
+    int s, sz, r, p1, p2, a1, a2, nb;
+    int16_t b[6], d[6];
+};
+#endif
+
 struct g722_encode_state
 {
+#ifdef CONFIG_USB_ASHA_SONNET3
+    struct g722_high_state quality_high, quality_low;
+    int16_t even[24], odd[24];
+    unsigned qmf_head;
+#endif
     /*! TRUE if the operating in the special ITU test mode, with the band split filters
              disabled. */
     int itu_test_mode;

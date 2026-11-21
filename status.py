@@ -28,7 +28,7 @@ def status(include_mic=False):
                     fault_pc=hex(pc) if fault else None, fault_stage=STAGES[fault_stage] if fault else None)
         if include_mic:
             build, *_ = struct.unpack("<5I", device.ctrl_transfer(0xC0, 0x43, 0, 0, 20))
-            if build != 264:
+            if build != 267:
                 raise SystemExit(f"Build {build} does not provide SONNET 3 button status")
             result, stage, targets, verified = device.ctrl_transfer(0xC0, 0x45, 0, 0, 4)
             report["last_mic_button"] = dict(

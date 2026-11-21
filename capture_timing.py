@@ -35,7 +35,7 @@ def capture(output, seconds, start_record=None):
     build, hz, cursor, unmatched, anchor = INFO.unpack(
         device.ctrl_transfer(0xC0, 0x43, 0, 0, INFO.size, timeout=1000))
     anchor_time = (before + time.time()) / 2
-    if build not in (263, 264) or not hz:
+    if build not in (263, 267) or not hz:
         raise RuntimeError(f"Unexpected timing descriptor: build {build}, clock {hz}")
     if start_record is not None:
         cursor = start_record & MASK

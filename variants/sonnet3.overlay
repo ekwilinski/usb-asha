@@ -1,0 +1,14 @@
+/* Reserve the first two 8 KiB SRAM banks for DSP instructions. The nRF52840
+ * maps these same bytes at 0x00800000 on the CPU's dedicated instruction bus. */
+&sram0 {
+    reg = <0x20004000 0x3c000>;
+};
+
+/ {
+    dsp_code: memory@800000 {
+        compatible = "zephyr,memory-region", "mmio-sram";
+        reg = <0x00800000 0x4000>;
+        zephyr,memory-region = "DSPCODE";
+        zephyr,memory-region-flags = "rx";
+    };
+};

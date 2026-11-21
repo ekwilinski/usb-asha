@@ -22,6 +22,8 @@ jobs:
         run: |
           cc -O3 -funroll-loops -Icodec -Icodec/include tests/codec_reference.c codec/g722_encode.c -o "$RUNNER_TEMP/check-codec"
           "$RUNNER_TEMP/check-codec"
+          cc -O3 -DCONFIG_USB_ASHA_SONNET3=1 -Icodec -Icodec/include tests/codec_reference.c codec/g722_encode.c -o "$RUNNER_TEMP/check-quality"
+          "$RUNNER_TEMP/check-quality"
           cc -std=c11 -Wall -Werror tests/sonnet_controls.c -o "$RUNNER_TEMP/check-sonnet"
           "$RUNNER_TEMP/check-sonnet"
 
@@ -44,7 +46,7 @@ jobs:
         run: |
           (cd zephyr && git apply ../usb-asha/patches/*.patch)
           west build -b raytac_mdbt50q_cx_40_dongle/nrf52840 -d build usb-asha
-          west build -b raytac_mdbt50q_cx_40_dongle/nrf52840 -d build-sonnet usb-asha -- -DEXTRA_CONF_FILE=variants/sonnet3.conf
+          west build -b raytac_mdbt50q_cx_40_dongle/nrf52840 -d build-sonnet usb-asha -- -DEXTRA_CONF_FILE=variants/sonnet3.conf -DEXTRA_DTC_OVERLAY_FILE=variants/sonnet3.overlay
 
       - name: Package and verify Nordic USB DFU image
         run: |
@@ -57,7 +59,7 @@ jobs:
             --application-version 263 --application build/zephyr/zephyr.hex build/usb-asha-cx40.zip
           unzip -p build/usb-asha-cx40.zip zephyr.bin | cmp - build/zephyr/zephyr.bin
           "$RUNNER_TEMP/nrfutil" nrf5sdk-tools pkg generate --hw-version 52 --sd-req 0x0102 \
-            --application-version 264 --application build-sonnet/zephyr/zephyr.hex build-sonnet/usb-asha-sonnet3-cx40.zip
+            --application-version 267 --application build-sonnet/zephyr/zephyr.hex build-sonnet/usb-asha-sonnet3-cx40.zip
           unzip -p build-sonnet/usb-asha-sonnet3-cx40.zip zephyr.bin | cmp - build-sonnet/zephyr/zephyr.bin
 
       - name: Upload flashable DFU ZIP

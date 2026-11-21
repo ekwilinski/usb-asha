@@ -36,6 +36,9 @@
 
 static inline int16_t saturate(int32_t amp)
 {
+#if defined(CONFIG_USB_ASHA_SONNET3) && defined(__ARM_FEATURE_DSP)
+    return __builtin_arm_ssat(amp, 16);
+#else
     int16_t amp16;
 
     /* Hopefully this is optimised for the common case - not clipping */
@@ -45,6 +48,7 @@ static inline int16_t saturate(int32_t amp)
     if (amp > INT16_MAX)
         return  INT16_MAX;
     return  INT16_MIN;
+#endif
 }
 /*- End of function --------------------------------------------------------*/
 

@@ -4,7 +4,7 @@ config USB_ASHA_SONNET3
 
 config USB_ASHA_BUILD_NUMBER
 	int
-	default 264 if USB_ASHA_SONNET3
+	default 267 if USB_ASHA_SONNET3
 	default 263
 
 source "Kconfig.zephyr"

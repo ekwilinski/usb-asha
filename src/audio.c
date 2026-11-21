@@ -1,6 +1,7 @@
 #include "audio.h"
 #ifdef CONFIG_USB_ASHA_SONNET3
 #include "sonnet_controls.h"
+#include "sonnet_fir.h"
 #include "sonnet_mix.h"
 #endif
 #include "asha.h"
@@ -36,18 +37,39 @@ static unsigned filled;
 static uint32_t previous_packet;
 static atomic_t mute[3], db[3];
 
+#ifdef CONFIG_USB_ASHA_SONNET3
+/* 48 kHz to 16 kHz, 6.8 kHz passband and 7.75 kHz stopband, Q15. */
+static const q15_t taps[] = {
+	21, 39, 51, 47, 20, -12, -34, -26, 2, 33, 37, 11,
+	-29, -48, -29, 19, 56, 50, -1, -57, -72, -26, 49, 91,
+	59, -27, -101, -96, -7, 99, 131, 54, -79, -159, -111, 40,
+	173, 172, 21, -165, -229, -102, 129, 274, 198, -60, -296, -303,
+	-46, 283, 407, 190, -223, -497, -372, 101, 557, 592, 103, -567,
+	-855, -425, 493, 1184, 957, -258, -1677, -2046, -454, 2951, 6861, 9461,
+	9461, 6861, 2951, -454, -2046, -1677, -258, 957, 1184, 493, -425, -855,
+	-567, 103, 592, 557, 101, -372, -497, -223, 190, 407, 283, -46,
+	-303, -296, -60, 198, 274, 129, -102, -229, -165, 21, 172, 173,
+	40, -111, -159, -79, 54, 131, 99, -7, -96, -101, -27, 59,
+	91, 49, -26, -72, -57, -1, 50, 56, 19, -29, -48, -29,
+	11, 37, 33, 2, -26, -34, -12, 20, 47, 51, 39, 21,
+};
+#else
 /* 48 kHz, 7.2 kHz cutoff, 60-tap Kaiser window (beta 6), Q15. */
 static const q15_t taps[] = {
 	2,9,10,-3,-27,-36,-8,50,88,51,-63,-169,-147,39,267,318,66,-353,-582,-315,
 	373,961,822,-219,-1535,-1937,-448,2892,6818,9461,9461,6818,2892,-448,-1937,-1535,
 	-219,822,961,373,-315,-582,-353,66,318,267,39,-147,-169,-63,51,88,50,-8,-36,-27,-3,10,9,2
 };
+#endif
 static struct {
 	G722_ENC_CTX *encoder;
 	arm_fir_decimate_instance_q15 fir;
 	q15_t history[USB_SAMPLES + ARRAY_SIZE(taps) - 1];
 } paths[SIDES];
-static int16_t mixed[USB_SAMPLES], filtered[PCM_SAMPLES];
+#ifndef CONFIG_USB_ASHA_SONNET3
+static int16_t mixed[USB_SAMPLES];
+#endif
+static int16_t filtered[PCM_SAMPLES];
 
 /* Per-channel USB attenuation; the master level goes to the ASHA Volume characteristic. */
 static const uint16_t gain_q15[] = {
@@ -218,6 +240,9 @@ bool audio_encode(unsigned slot, enum audio_route route, const struct audio_fram
 		  uint8_t out[CODE_BYTES])
 {
 	int64_t began = k_uptime_ticks();
+#ifdef CONFIG_USB_ASHA_SONNET3
+	int16_t *mixed = paths[slot].history + ARRAY_SIZE(taps) - 1;
+#endif
 	int32_t left = atomic_get(&mute[1]) ? 0 : gain_q15[-atomic_get(&db[1])];
 	int32_t right = atomic_get(&mute[2]) ? 0 : gain_q15[-atomic_get(&db[2])];
 	for (unsigned i = 0; i < USB_SAMPLES; ++i) {
@@ -225,7 +250,12 @@ bool audio_encode(unsigned slot, enum audio_route route, const struct audio_fram
 		int32_t r = (frame->samples[1][i] * right) >> 15;
 		mixed[i] = route == ROUTE_MONO ? (l + r) / 2 : route == ROUTE_LEFT ? l : r;
 	}
+#ifdef CONFIG_USB_ASHA_SONNET3
+	BUILD_ASSERT(ARRAY_SIZE(taps) == 144 && PCM_SAMPLES % 4 == 0);
+	sonnet_decimate(taps, paths[slot].history, filtered);
+#else
 	arm_fir_decimate_q15(&paths[slot].fir, mixed, filtered, USB_SAMPLES);
+#endif
 	int length = g722_encode(paths[slot].encoder, filtered, PCM_SAMPLES, out);
 	uint32_t us = k_ticks_to_us_floor32(k_uptime_ticks() - began);
 	atomic_set(&diag_encode_us, us);

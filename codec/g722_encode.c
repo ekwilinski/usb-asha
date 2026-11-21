@@ -35,6 +35,9 @@
 #include "g722_private.h"
 #include "g722_common.h"
 #include "g722_encoder.h"
+#ifdef CONFIG_USB_ASHA_SONNET3
+#include "g722_search.h"
+#endif
 
 G722_ENC_CTX *
 g722_encoder_new(int rate, int options)
@@ -58,6 +61,9 @@ g722_encoder_new(int rate, int options)
         s->packed = FALSE;
     s->band[0].det = 32;
     s->band[1].det = 8;
+#ifdef CONFIG_USB_ASHA_SONNET3
+    s->quality_high.nb = 0;
+#endif
     return s;
 }
 /*- End of function --------------------------------------------------------*/
@@ -69,6 +75,9 @@ int g722_encoder_destroy(G722_ENC_CTX *s)
 }
 /*- End of function --------------------------------------------------------*/
 
+#if defined(CONFIG_USB_ASHA_SONNET3) && defined(__ZEPHYR__)
+__attribute__((noinline))
+#endif
 int g722_encode(G722_ENC_CTX *s, const int16_t amp[], int len, uint8_t g722_data[])
 {
     static const int q6[32] =
@@ -119,10 +128,12 @@ int g722_encode(G722_ENC_CTX *s, const int16_t amp[], int len, uint8_t g722_data
     {
         -7408,  -1616,   7408,   1616
     };
+#ifndef CONFIG_USB_ASHA_SONNET3
     static const int qmf_coeffs[12] =
     {
            3,  -11,   12,   32, -210,  951, 3876, -805,  362, -156,   53,  -11,
     };
+#endif
     static const int ihn[3] = {0, 1, 0};
     static const int ihp[3] = {0, 3, 2};
     static const int wh[3] = {0, -214, 798};
@@ -147,12 +158,19 @@ int g722_encode(G722_ENC_CTX *s, const int16_t amp[], int len, uint8_t g722_data
     int xhigh;
     int g722_bytes;
     /* Even and odd tap accumulators */
+#ifndef CONFIG_USB_ASHA_SONNET3
     int sumeven;
     int sumodd;
+#endif
     int ihigh;
     int ilow;
     int code;
 
+#ifdef CONFIG_USB_ASHA_SONNET3
+    int high_samples[SEARCH_SAMPLES];
+    int pending = 0;
+    prepare_quantizers(ilb, q6);
+#endif
     g722_bytes = 0;
     xhigh = 0;
     for (j = 0;  j < len;  )
@@ -170,6 +188,10 @@ int g722_encode(G722_ENC_CTX *s, const int16_t amp[], int len, uint8_t g722_data
             }
             else
             {
+#ifdef CONFIG_USB_ASHA_SONNET3
+                quality_qmf(s, amp + j, &xlow, &xhigh);
+                j += 2;
+#else
                 /* Apply the transmit QMF */
                 /* Shuffle the buffer down */
                 for (i = 0;  i < 22;  i++)
@@ -187,6 +209,7 @@ int g722_encode(G722_ENC_CTX *s, const int16_t amp[], int len, uint8_t g722_data
                 }
                 xlow = (sumeven + sumodd) >> 14;
                 xhigh = (sumeven - sumodd) >> 14;
+#endif
             }
         }
         /* Block 1L, SUBTRA */
@@ -195,12 +218,18 @@ int g722_encode(G722_ENC_CTX *s, const int16_t amp[], int len, uint8_t g722_data
         /* Block 1L, QUANTL */
         wd = (el >= 0)  ?  el  :  -(el + 1);
 
+#ifdef CONFIG_USB_ASHA_SONNET3
+        unsigned det = (unsigned)s->band[0].det;
+        unsigned key = (((unsigned)wd + 1) * 4096 + det - 1) / det;
+        i = key > 2919 ? 30 : low_threshold[key];
+#else
         for (i = 1;  i < 30;  i++)
         {
             wd1 = (q6[i]*s->band[0].det) >> 12;
             if (wd < wd1)
                 break;
         }
+#endif
         ilow = (el < 0)  ?  iln[i]  :  ilp[i];
 
         /* Block 2L, INVQAL */
@@ -223,8 +252,25 @@ int g722_encode(G722_ENC_CTX *s, const int16_t amp[], int len, uint8_t g722_data
         wd3 = (wd2 < 0)  ?  (ilb[wd1] << -wd2)  :  (ilb[wd1] >> wd2);
         s->band[0].det = wd3 << 2;
 
+#ifdef CONFIG_USB_ASHA_SONNET3
+        predict_delta(&s->quality_low, &s->quality_low, dlow);
+        s->band[0].s = s->quality_low.s;
+#else
         block4(&s->band[0], dlow);
+#endif
         
+#ifdef CONFIG_USB_ASHA_SONNET3
+        if (!s->eight_k && !s->itu_test_mode && s->bits_per_sample == 8) {
+            g722_data[g722_bytes++] = (uint8_t)ilow;
+            high_samples[pending++] = xhigh;
+            if (pending == SEARCH_SAMPLES || j == len) {
+                encode_high_band(&s->quality_high, high_samples, g722_data + g722_bytes - pending,
+                                 pending);
+                pending = 0;
+            }
+            continue;
+        }
+#endif
         if (s->eight_k)
         {
             /* Just leave the high bits as zero */
